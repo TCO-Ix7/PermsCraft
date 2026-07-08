@@ -1,6 +1,6 @@
 # PermsCraft Source-Available License (PSAL) v1.0
 
-Copyright (c) 2026–present, PermsCraft / TCO. All rights reserved.
+Copyright (c) 2026–present, PermsCraft / TCO & ImXevil. All rights reserved.
 
 This license governs use of the software and associated source code,
 documentation, and configuration files in this repository (the
