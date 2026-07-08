@@ -1,0 +1,132 @@
+# PermsCraft v1.0.2 Configuration
+
+storage:
+  # Options: mysql | mariadb | postgresql | sqlite | h2 | yaml | mongodb
+  # - sqlite  → single file, no server needed, great for small servers
+  # - h2      → embedded database, slightly faster than SQLite for reads
+  # - yaml    → human-readable flat files (groups.yml, users/<uuid>.yml), easy to edit/backup manually
+  # - mysql   → recommended for larger servers or BungeeCord networks
+  # - mariadb → MySQL-compatible, often better performance/licensing on shared hosts
+  # - postgresql → alternative to MySQL, excellent for high concurrency
+  # - mongodb → document-based, ideal for very large networks
+  type: sqlite
+
+  mariadb:
+    host: localhost
+    port: 3306
+    database: permscraft
+    username: root
+    password: password
+    pool-size: 10
+    use-ssl: false
+
+  yaml:
+    # Folder (relative to the plugin's data folder) where YAML files are stored
+    folder: data
+
+  mysql:
+    host: localhost
+    port: 3306
+    database: permscraft
+    username: root
+    password: password
+    pool-size: 10
+
+  postgresql:
+    host: localhost
+    port: 5432
+    database: permscraft
+    username: postgres
+    password: password
+    pool-size: 10
+
+  # SQLite stores data in /plugins/PermsCraft/permscraft.db
+  # No configuration needed.
+
+  # H2 stores data in /plugins/PermsCraft/permscraft-h2.mv.db
+  # No configuration needed.
+
+  mongodb:
+    uri: "mongodb://localhost:27017"
+    database: permscraft
+
+  redis:
+    # Enable for multi-server BungeeCord/Velocity sync
+    enabled: false
+    host: localhost
+    port: 6379
+    password: ""
+
+server:
+  # Unique name for this server (used in Redis sync)
+  name: "survival"
+
+log:
+  # How many days to keep log entries
+  keep-days: 30
+
+messages:
+  prefix: "&8[&bPermsCraft&8] &r"
+  no-permission: "&cYou don't have permission to do that."
+  player-not-found: "&cPlayer not found."
+  group-not-found: "&cGroup not found."
+
+cache:
+  ttl-seconds: 300
+
+settings:
+  # If true, players with the "permscraft.autoop" permission node are automatically
+  # Use /pc user <name> permission set permscraft.autoop to enable for a player/group.
+  auto-op: false
+
+  # If true, the /op and /deop commands are blocked server-wide.
+  # Useful when PermsCraft fully manages your permissions and you don't want
+  # admins accidentally bypassing the system with /op.
+  # Console can still use /pc setup op <player> for initial setup.
+  disable-op-command: false
+
+messaging:
+  bungeecord: false
+
+# New optional context calculators (v1.2.x) — additive, all default to enabled.
+# Each contributes one extra context key that can be used with
+# /pc context <user|group> <name> set <permission> <key>=<value>
+context:
+  # time = day | night  (based on world time)
+  time-of-day:
+    enabled: true
+
+  # playtime-tier = newcomer | regular | veteran
+  playtime:
+    enabled: true
+    newcomer-hours: 1
+    veteran-hours: 100
+
+  # balance-tier = poor | standard | rich  (requires Vault + an economy plugin)
+  economy:
+    enabled: true
+    poor-below: 100
+    rich-above: 10000
+
+# ── REST API ──────────────────────────────────────────────────────────────────
+# Embedded HTTP server — accessible from Discord bots, web panels, CI scripts.
+# Keys are managed via: /pc apikey create <label> [scopes...]
+#
+# Scopes: read | write | log | sync | backup | admin
+# admin = all of the above
+#
+rest-api:
+  enabled: false          # Set to true to activate
+  port: 4567
+  bind: "127.0.0.1"       # Use 0.0.0.0 to expose externally (add firewall rules!)
+  rate-limit:
+    requests-per-minute: 120
+
+# ── Timed Group Memberships ───────────────────────────────────────────────────
+# Temporary group assignments that automatically expire.
+# /pc user <player> timedgroup add <group> <duration>
+# Duration format: 1d, 12h, 30m, 7d12h etc.
+timed-groups:
+  # Notify the player when their timed group expires (if they are online)
+  notify-on-expiry: true
+  notify-message: "&eYour temporary &b{group} &egroup membership has expired."

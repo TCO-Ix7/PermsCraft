@@ -1,0 +1,211 @@
+name: PermsCraft
+version: '1.0.0'
+main: ir.permscraft.PermsCraft
+api-version: '1.21'
+folia-supported: true
+description: Advanced permission plugin - multi-key contexts, Folia/Paper/Spigot
+authors: [PermsCraft]
+
+# همه dependency ها داخل jar شیده شدن — هیچ چیزی runtime دانلود نمیشه.
+# سرور بدون اینترنت هم کار می‌کنه.
+
+softdepend:
+  - PlaceholderAPI
+  - Vault
+
+commands:
+  pc:
+    description: Main PermsCraft command
+    usage: /pc <command> [args]
+    aliases: [permscraft, pcraft]
+    permission: permscraft.admin
+    permission-message: "&cYou don't have permission to use PermsCraft commands."
+
+permissions:
+  # ── Wildcard ────────────────────────────────────────────────────────────────
+  permscraft.*:
+    description: All PermsCraft permissions
+    default: op
+    children:
+      permscraft.admin: true
+      permscraft.user: true
+      permscraft.editor: true
+
+  # ── Top-level ────────────────────────────────────────────────────────────────
+  permscraft.admin:
+    description: Full access to all PermsCraft commands
+    default: op
+    children:
+      permscraft.user.*: true
+      permscraft.group.*: true
+      permscraft.track.*: true
+      permscraft.log.*: true
+      permscraft.backup.*: true
+      permscraft.migrate: true
+      permscraft.reload: true
+      permscraft.verbose: true
+      permscraft.check: true
+      permscraft.debug: true
+      permscraft.sync: true
+      permscraft.search: true
+      permscraft.tree: true
+      permscraft.export: true
+      permscraft.import: true
+      permscraft.listgroups: true
+      permscraft.conflicts: true
+      permscraft.bulkupdate: true
+      permscraft.context: true
+      permscraft.apikey: true
+      permscraft.editor: true
+      permscraft.info: true
+
+  permscraft.user:
+    description: Basic user commands (self-info only)
+    default: true
+
+  permscraft.autoop:
+    description: Grants server OP automatically when the player is online
+    default: false
+
+  permscraft.editor:
+    description: Access to the in-game GUI editor (/pc editor)
+    default: op
+
+  # ── User subcommands ─────────────────────────────────────────────────────────
+  permscraft.user.*:
+    description: All user management commands
+    default: op
+    children:
+      permscraft.user.info: true
+      permscraft.user.setgroup: true
+      permscraft.user.addgroup: true
+      permscraft.user.removegroup: true
+      permscraft.user.addperm: true
+      permscraft.user.removeperm: true
+      permscraft.user.setprefix: true
+      permscraft.user.setsuffix: true
+      permscraft.user.setmeta: true
+      permscraft.user.clear: true
+      permscraft.user.timed: true
+      permscraft.user.timedgroup: true
+
+  permscraft.user.info:
+    description: View user info (/pc user <name> info)
+    default: op
+  permscraft.user.setgroup:
+    description: Set a user's primary group
+    default: op
+  permscraft.user.addgroup:
+    description: Add a user to a group
+    default: op
+  permscraft.user.removegroup:
+    description: Remove a user from a group
+    default: op
+  permscraft.user.addperm:
+    description: Add a permission to a user
+    default: op
+  permscraft.user.removeperm:
+    description: Remove a permission from a user
+    default: op
+  permscraft.user.setprefix:
+    description: Set a user's prefix
+    default: op
+  permscraft.user.setsuffix:
+    description: Set a user's suffix
+    default: op
+  permscraft.user.setmeta:
+    description: Set/unset a user's meta key
+    default: op
+  permscraft.user.clear:
+    description: Clear all permissions/groups from a user
+    default: op
+  permscraft.user.timed:
+    description: Manage timed (temporary) permissions for users
+    default: op
+  permscraft.user.timedgroup:
+    description: Manage timed (temporary) group memberships for users
+    default: op
+
+  # ── Group subcommands ────────────────────────────────────────────────────────
+  permscraft.group.*:
+    description: All group management commands
+    default: op
+    children:
+      permscraft.group.info: true
+      permscraft.group.create: true
+      permscraft.group.delete: true
+      permscraft.group.addperm: true
+      permscraft.group.removeperm: true
+      permscraft.group.setparent: true
+      permscraft.group.setprefix: true
+      permscraft.group.setsuffix: true
+      permscraft.group.setweight: true
+      permscraft.group.setmeta: true
+      permscraft.group.clear: true
+
+  permscraft.group.info:    { description: "View group info",              default: op }
+  permscraft.group.create:  { description: "Create a group",               default: op }
+  permscraft.group.delete:  { description: "Delete a group",               default: op }
+  permscraft.group.addperm: { description: "Add a permission to a group",  default: op }
+  permscraft.group.removeperm: { description: "Remove a permission from a group", default: op }
+  permscraft.group.setparent:  { description: "Add/remove parent groups",  default: op }
+  permscraft.group.setprefix:  { description: "Set group prefix",          default: op }
+  permscraft.group.setsuffix:  { description: "Set group suffix",          default: op }
+  permscraft.group.setweight:  { description: "Set group weight",          default: op }
+  permscraft.group.setmeta:    { description: "Set group meta key",        default: op }
+  permscraft.group.clear:      { description: "Clear all group perms",     default: op }
+
+  # ── Track subcommands ────────────────────────────────────────────────────────
+  permscraft.track.*:
+    description: All track commands
+    default: op
+    children:
+      permscraft.track.info: true
+      permscraft.track.create: true
+      permscraft.track.delete: true
+      permscraft.track.promote: true
+      permscraft.track.demote: true
+
+  permscraft.track.info:    { description: "View track info",     default: op }
+  permscraft.track.create:  { description: "Create a track",      default: op }
+  permscraft.track.delete:  { description: "Delete a track",      default: op }
+  permscraft.track.promote: { description: "Promote a user",      default: op }
+  permscraft.track.demote:  { description: "Demote a user",       default: op }
+
+  # ── Utility ──────────────────────────────────────────────────────────────────
+  permscraft.log.*:
+    description: All log commands
+    default: op
+    children:
+      permscraft.log.view: true
+      permscraft.log.purge: true
+  permscraft.log.view:  { description: "View audit logs",   default: op }
+  permscraft.log.purge: { description: "Purge old logs",    default: op }
+
+  permscraft.backup.*:
+    description: All backup commands
+    default: op
+    children:
+      permscraft.backup.export: true
+      permscraft.backup.import: true
+      permscraft.backup.snapshot: true
+  permscraft.backup.export:   { description: "Export backup",         default: op }
+  permscraft.backup.import:   { description: "Import backup",         default: op }
+  permscraft.backup.snapshot: { description: "Create/restore snapshot", default: op }
+
+  permscraft.migrate:     { description: "Migrate from another plugin", default: op }
+  permscraft.reload:      { description: "Reload PermsCraft config",    default: op }
+  permscraft.verbose:     { description: "Use verbose mode",            default: op }
+  permscraft.check:       { description: "Check permissions",           default: op }
+  permscraft.debug:       { description: "Debug commands",              default: op }
+  permscraft.sync:        { description: "Force network sync",          default: op }
+  permscraft.search:      { description: "Search permissions",          default: op }
+  permscraft.tree:        { description: "View permission tree",        default: op }
+  permscraft.export:      { description: "Export data",                 default: op }
+  permscraft.import:      { description: "Import data",                 default: op }
+  permscraft.listgroups:  { description: "List all groups",             default: op }
+  permscraft.conflicts:   { description: "View permission conflicts",   default: op }
+  permscraft.bulkupdate:  { description: "Bulk update permissions",     default: op }
+  permscraft.context:     { description: "Manage context permissions",  default: op }
+  permscraft.apikey:      { description: "Manage REST API keys",        default: op }
+  permscraft.info:        { description: "Show plugin info",            default: op }

@@ -1,0 +1,1205 @@
+openapi: 3.0.3
+info:
+  title: PermsCraft REST API
+  description: |
+    Embedded REST API for the PermsCraft Minecraft permission plugin.
+
+    ## Authentication
+    Every request must include a valid API key in the `Authorization` header:
+    ```
+    Authorization: Bearer <api-key>
+    ```
+    Keys are managed in-game or from console:
+    ```
+    /pc apikey create <label> [scopes...]
+    /pc apikey list
+    /pc apikey revoke <label>
+    ```
+
+    ## Scopes
+    | Scope    | Description |
+    |----------|-------------|
+    | `read`   | GET endpoints for groups, users, server info |
+    | `write`  | POST/PUT/DELETE for groups and users |
+    | `log`    | Access to audit log endpoints |
+    | `sync`   | Trigger cache flush and sync operations |
+    | `backup` | Export, import, and restore backups |
+    | `admin`  | All scopes combined |
+
+    ## Security
+    > ⚠️ The API transmits keys over plain HTTP by default.
+    > It is strongly recommended to use a TLS reverse proxy (nginx/Caddy)
+    > and bind to `127.0.0.1` in `config.yml`.
+    > See the [TLS setup guide](https://github.com/your-repo/wiki/REST-API-TLS).
+
+    ## Rate Limiting
+    Default: 120 requests per minute per IP. Configurable in `config.yml`.
+  version: 1.0.0
+  contact:
+    name: PermsCraft
+    url: https://github.com/your-repo
+
+servers:
+  - url: http://localhost:4567/api/v1
+    description: Local server (default)
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Group 'admin' not found."
+
+    Group:
+      type: object
+      properties:
+        name:
+          type: string
+          example: admin
+        weight:
+          type: integer
+          example: 100
+        prefix:
+          type: string
+          example: "&c[Admin] "
+        suffix:
+          type: string
+          example: ""
+        parents:
+          type: array
+          items:
+            type: string
+          example: ["default", "vip"]
+        permissions:
+          type: array
+          items:
+            type: string
+          example: ["essentials.fly", "-essentials.ban"]
+        meta:
+          type: object
+          additionalProperties:
+            type: string
+
+    User:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        username:
+          type: string
+          example: Steve
+        groups:
+          type: array
+          items:
+            type: string
+          example: ["admin", "vip"]
+        permissions:
+          type: array
+          items:
+            type: string
+        prefix:
+          type: string
+        suffix:
+          type: string
+        meta:
+          type: object
+          additionalProperties:
+            type: string
+
+    TimedPermission:
+      type: object
+      properties:
+        permission:
+          type: string
+          example: "essentials.fly"
+        expires:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds)
+          example: 1735689600
+
+    LogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        timestamp:
+          type: integer
+          format: int64
+        actor:
+          type: string
+        action:
+          type: string
+          example: PERMISSION_ADD
+        target:
+          type: string
+        detail:
+          type: string
+
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: 1.0.0
+        server:
+          type: string
+          example: survival
+        timestamp:
+          type: integer
+          format: int64
+
+paths:
+
+  # ── Health ──────────────────────────────────────────────────────────────────
+  /health:
+    get:
+      summary: Health check
+      description: Returns plugin status. Does NOT require authentication.
+      tags: [Server]
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  # ── Groups ──────────────────────────────────────────────────────────────────
+  /groups:
+    get:
+      summary: List all groups
+      tags: [Groups]
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Group'
+                  count:
+                    type: integer
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a group
+      tags: [Groups]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: vip
+                weight:
+                  type: integer
+                  default: 0
+                  example: 10
+      responses:
+        "201":
+          description: Group created
+        "400":
+          description: Invalid input or group already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /groups/{name}:
+    get:
+      summary: Get a single group
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          example: admin
+      responses:
+        "200":
+          description: Group detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete a group
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group deleted
+        "404":
+          description: Group not found
+
+  /groups/{name}/permissions:
+    post:
+      summary: Add a permission to a group
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permission]
+              properties:
+                permission:
+                  type: string
+                  example: "essentials.fly"
+      responses:
+        "200":
+          description: Permission added
+
+  /groups/{name}/permissions/{perm}:
+    delete:
+      summary: Remove a permission from a group
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: perm
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Permission removed
+
+  /groups/{name}/parents:
+    post:
+      summary: Add a parent group (inheritance)
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parent]
+              properties:
+                parent:
+                  type: string
+                  example: default
+      responses:
+        "200":
+          description: Parent added
+
+  /groups/{name}/parents/{parent}:
+    delete:
+      summary: Remove a parent group
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: parent
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Parent removed
+
+  /groups/{name}/meta:
+    put:
+      summary: Set a meta key on a group
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value]
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
+      responses:
+        "200":
+          description: Meta set
+
+  /groups/{name}/meta/{key}:
+    delete:
+      summary: Delete a meta key from a group
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Meta key deleted
+
+  /groups/{name}/weight:
+    put:
+      summary: Set group weight
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [weight]
+              properties:
+                weight:
+                  type: integer
+                  example: 50
+      responses:
+        "200":
+          description: Weight updated
+
+  /groups/{name}/prefix:
+    put:
+      summary: Set group chat prefix
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prefix:
+                  type: string
+                  example: "&c[Admin] "
+      responses:
+        "200":
+          description: Prefix updated
+
+  /groups/{name}/suffix:
+    put:
+      summary: Set group chat suffix
+      tags: [Groups]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                suffix:
+                  type: string
+      responses:
+        "200":
+          description: Suffix updated
+
+  # ── Users ───────────────────────────────────────────────────────────────────
+  /users/{uuid}:
+    get:
+      summary: Get user by UUID
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "404":
+          description: User not found
+
+  /users/name/{name}:
+    get:
+      summary: Look up user by username
+      tags: [Users]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "404":
+          description: User not found
+
+  /users/{uuid}/permissions/check:
+    get:
+      summary: Check a single permission for a user
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: node
+          required: true
+          schema:
+            type: string
+          example: essentials.fly
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permission:
+                    type: string
+                  result:
+                    type: boolean
+
+  /users/{uuid}/permissions/resolved:
+    get:
+      summary: Get full resolved permission map for a user
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Full permission map
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: boolean
+
+  /users/{uuid}/permissions:
+    post:
+      summary: Add a permission to a user
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permission]
+              properties:
+                permission:
+                  type: string
+      responses:
+        "200":
+          description: Permission added
+
+  /users/{uuid}/permissions/{perm}:
+    delete:
+      summary: Remove a permission from a user
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: perm
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Permission removed
+
+  /users/{uuid}/groups:
+    post:
+      summary: Add user to a group
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group]
+              properties:
+                group:
+                  type: string
+      responses:
+        "200":
+          description: User added to group
+
+  /users/{uuid}/groups/{group}:
+    delete:
+      summary: Remove user from a group
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: group
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User removed from group
+
+  /users/{uuid}/timed-permissions:
+    get:
+      summary: List timed permissions for a user
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of timed permissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimedPermission'
+
+    post:
+      summary: Add a timed permission to a user
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permission, duration]
+              properties:
+                permission:
+                  type: string
+                  example: "essentials.fly"
+                duration:
+                  type: string
+                  description: "Duration string: 1d, 12h, 30m, 7d12h"
+                  example: "7d"
+      responses:
+        "200":
+          description: Timed permission added
+
+  /users/{uuid}/timed-permissions/{perm}:
+    delete:
+      summary: Revoke a timed permission
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: perm
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Timed permission revoked
+
+  /users/{uuid}/prefix:
+    put:
+      summary: Set user prefix
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prefix:
+                  type: string
+      responses:
+        "200":
+          description: Prefix set
+
+  /users/{uuid}/suffix:
+    put:
+      summary: Set user suffix
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                suffix:
+                  type: string
+      responses:
+        "200":
+          description: Suffix set
+
+  /users/{uuid}/meta:
+    put:
+      summary: Set a meta key on a user
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value]
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
+      responses:
+        "200":
+          description: Meta set
+
+  /users/{uuid}/meta/{key}:
+    delete:
+      summary: Delete a meta key from a user
+      tags: [Users]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Meta key deleted
+
+  # ── Logs ────────────────────────────────────────────────────────────────────
+  /logs:
+    get:
+      summary: List audit log entries (paginated)
+      tags: [Logs]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - in: query
+          name: actor
+          schema:
+            type: string
+          description: Filter by actor name
+        - in: query
+          name: target
+          schema:
+            type: string
+          description: Filter by target (UUID or group name)
+        - in: query
+          name: action
+          schema:
+            type: string
+          description: "Filter by action type (e.g. PERMISSION_ADD)"
+        - in: query
+          name: from
+          schema:
+            type: integer
+            format: int64
+          description: Start of time range (Unix seconds)
+        - in: query
+          name: to
+          schema:
+            type: integer
+            format: int64
+          description: End of time range (Unix seconds)
+      responses:
+        "200":
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LogEntry'
+                  page:
+                    type: integer
+                  size:
+                    type: integer
+                  total:
+                    type: integer
+
+    delete:
+      summary: Purge log entries older than N days
+      tags: [Logs]
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: integer
+          description: Delete entries older than this many days (default from config)
+      responses:
+        "200":
+          description: Purge result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                    description: "-1 means count unavailable (YAML/MongoDB backend)"
+
+  /logs/actions:
+    get:
+      summary: List all known action types
+      tags: [Logs]
+      responses:
+        "200":
+          description: List of action types
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items:
+                      type: string
+
+  # ── Sync / Cache ─────────────────────────────────────────────────────────────
+  /sync:
+    post:
+      summary: Trigger a full reload across all servers
+      tags: [Sync]
+      responses:
+        "200":
+          description: Reload triggered
+
+  /sync/user/{uuid}:
+    post:
+      summary: Sync a specific user across servers
+      tags: [Sync]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User sync triggered
+
+  /sync/group/{name}:
+    post:
+      summary: Sync a specific group across servers
+      tags: [Sync]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group sync triggered
+
+  /sync/status:
+    get:
+      summary: Get messaging/sync backend status
+      tags: [Sync]
+      responses:
+        "200":
+          description: Sync status
+
+  /cache/flush:
+    post:
+      summary: Flush the entire permission cache
+      tags: [Sync]
+      responses:
+        "200":
+          description: Cache flushed
+
+  /cache/flush/user/{uuid}:
+    post:
+      summary: Flush cache for a specific user
+      tags: [Sync]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User cache flushed
+
+  /cache/flush/group/{name}:
+    post:
+      summary: Flush cache for a specific group
+      tags: [Sync]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group cache flushed
+
+  # ── Backup ──────────────────────────────────────────────────────────────────
+  /backup/export:
+    get:
+      summary: Export a full backup as JSON
+      tags: [Backup]
+      responses:
+        "200":
+          description: Backup JSON
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /backup/import:
+    post:
+      summary: Import a backup (overwrites current data)
+      tags: [Backup]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Import complete
+        "400":
+          description: Invalid backup format
+
+  /backup/list:
+    get:
+      summary: List available local backup snapshots
+      tags: [Backup]
+      responses:
+        "200":
+          description: List of backup files
+
+  /backup/snapshot:
+    post:
+      summary: Create a local backup snapshot
+      tags: [Backup]
+      responses:
+        "200":
+          description: Snapshot created
+
+  /backup/restore/{name}:
+    post:
+      summary: Restore a named local snapshot
+      tags: [Backup]
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Restore complete
+        "404":
+          description: Snapshot not found
+
+  # ── Server ──────────────────────────────────────────────────────────────────
+  /server:
+    get:
+      summary: Get server info and plugin status
+      tags: [Server]
+      responses:
+        "200":
+          description: Server info
+
+  /server/players:
+    get:
+      summary: List online players
+      tags: [Server]
+      responses:
+        "200":
+          description: Online player list
+
+  /server/players/{uuid}:
+    get:
+      summary: Get online player info
+      tags: [Server]
+      parameters:
+        - in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Player info
+        "404":
+          description: Player not online
+
+  /server/tracks:
+    get:
+      summary: List all tracks
+      tags: [Server]
+      responses:
+        "200":
+          description: Track list
+
+  /server/reload:
+    post:
+      summary: Reload the plugin configuration
+      tags: [Server]
+      responses:
+        "200":
+          description: Reload complete
+
+  # ── API Keys ─────────────────────────────────────────────────────────────────
+  /apikeys:
+    get:
+      summary: List API keys (labels and scopes only — no plaintext keys)
+      tags: [API Keys]
+      responses:
+        "200":
+          description: Key list
+
+    post:
+      summary: Create a new API key
+      description: |
+        The plaintext key is returned **once** in this response and never stored.
+        Save it immediately.
+      tags: [API Keys]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label:
+                  type: string
+                  example: discord-bot
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                  example: [read, log]
+      responses:
+        "201":
+          description: Key created — plaintext shown once
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  label:
+                    type: string
+                  key:
+                    type: string
+                    description: Plaintext key — store this, it won't be shown again
+                  scopes:
+                    type: array
+                    items:
+                      type: string
+
+  /apikeys/{label}:
+    delete:
+      summary: Revoke an API key by label
+      tags: [API Keys]
+      parameters:
+        - in: path
+          name: label
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Key revoked
+        "404":
+          description: Key not found
+
+tags:
+  - name: Groups
+    description: Group management
+  - name: Users
+    description: User management
+  - name: Logs
+    description: Audit log
+  - name: Sync
+    description: Cache and cross-server sync
+  - name: Backup
+    description: Backup and restore
+  - name: Server
+    description: Server info and plugin control
+  - name: API Keys
+    description: API key management
