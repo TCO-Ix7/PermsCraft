@@ -30,7 +30,7 @@ PermsCraft supports Paper, Spigot, Purpur, and Folia on Minecraft 1.21.x. Softde
 This project uses Maven.
 
 ```bash
-git clone https://github.com/PermsCraft/PermsCraft.git
+git clone https://github.com/TCO-Ix7/PermsCraft.git
 cd PermsCraft
 mvn clean package
 ```
